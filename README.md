@@ -9,16 +9,15 @@
             margin: 0;
             padding: 0;
             display: flex;
-            justify-content: center;
-            align-items: center;
             flex-direction: column;
+            align-items: center;
             font-family: Arial, sans-serif;
             background-color: #f4f4f4;
         }
-        #video {
+        #video, #captured-photo {
             width: 480px;
             height: 360px;
-            background-color: #000;
+            margin-top: 20px;
         }
         .button {
             margin-top: 10px;
@@ -26,28 +25,18 @@
             font-size: 16px;
             cursor: pointer;
         }
-        #captured-photo {
-            display: none;
-            margin-top: 10px;
-        }
         .hidden {
             display: none;
         }
-        .photo-container, #gallery-container, #date-gallery-container {
+        #gallery-container, #date-gallery-container {
             display: none;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 640px;
             margin-top: 20px;
         }
-        .photo-container img, #gallery img, #date-gallery img {
-            width: 30%;
-            max-width: 180px;
+        #gallery img, #date-gallery img {
+            width: 100px;
             margin: 5px;
             cursor: pointer;
             border: 1px solid #ccc;
-            box-shadow: 0 0 5px #ccc;
         }
         #ad-container {
             margin-top: 20px;
@@ -58,9 +47,9 @@
 
 <video id="video" autoplay playsinline></video>
 <button id="capture-btn" class="button">사진 찍기</button>
-<div class="photo-container hidden">
+<div id="photo-container" class="hidden">
     <img id="captured-photo" src="">
-    <a id="download-link" class="button" download="captured_photo.png">사진 다운로드</a>
+    <a id="download-link" download="captured_photo.png">사진 다운로드</a>
 </div>
 <button id="show-gallery-btn" class="button">나의 갤러리</button>
 
@@ -75,69 +64,62 @@
 </div>
 
 <div id="ad-container">
-    <!-- 쿠팡 광고 베너 및 문구 -->
-    <p>이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>
+    <!-- 쿠팡 광고 문구 (광고 스크립트 적용 예시를 위한 텍스트로 대체) -->
+    <p>쿠팡 파트너스 활동의 일환으로, 일정액의 수수료를 제공받을 수 있습니다.</p>
 </div>
 
 <script>
     let photos = JSON.parse(localStorage.getItem('photos')) || {};
+    const videoElement = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+    const photoContainer = document.getElementById('photo-container');
+    const capturedPhotoElement = document.getElementById('captured-photo');
+    const downloadLink = document.getElementById('download-link');
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const video = document.getElementById('video');
-        const canvas = document.createElement('canvas');
-        const photoContainer = document.querySelector('.photo-container');
-        const photo = document.getElementById('captured-photo');
-        const downloadLink = document.getElementById('download-link');
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => videoElement.srcObject = stream)
+        .catch(err => console.error("카메라 접근 에러:", err));
 
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => video.srcObject = stream)
-            .catch(err => alert("카메라 접근 권한이 필요합니다."));
+    document.getElementById('capture-btn').addEventListener('click', () => {
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        canvas.getContext('2d').drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        const capturedPhoto = canvas.toDataURL('image/png');
+        capturedPhotoElement.src = capturedPhoto;
+        downloadLink.href = capturedPhoto;
+        photoContainer.classList.remove('hidden');
 
-        document.getElementById('capture-btn').addEventListener('click', function() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            let imageSrc = canvas.toDataURL('image/png');
-            photo.src = imageSrc;
-            downloadLink.href = imageSrc;
-            photoContainer.classList.remove('hidden');
-
-            const today = new Date().toISOString().split('T')[0];
-            if (!photos[today]) photos[today] = [];
-            photos[today].push(imageSrc);
-            localStorage.setItem('photos', JSON.stringify(photos));
-        });
-
-        document.getElementById('show-gallery-btn').addEventListener('click', showGallery);
+        const today = new Date().toISOString().split('T')[0];
+        if (!photos[today]) photos[today] = [];
+        photos[today].push(capturedPhoto);
+        localStorage.setItem('photos', JSON.stringify(photos));
     });
 
-    function showGallery() {
+    document.getElementById('show-gallery-btn').addEventListener('click', () => {
         const galleryContainer = document.getElementById('gallery-container');
         const gallery = document.getElementById('gallery');
-        gallery.innerHTML = ''; // Clear previous content
+        gallery.innerHTML = '';
         Object.keys(photos).forEach(date => {
-            const imgSrc = photos[date][photos[date].length - 1]; // Last photo of the day
             const img = document.createElement('img');
-            img.src = imgSrc;
-            img.addEventListener('click', () => showDateGallery(date));
+            img.src = photos[date][photos[date].length - 1]; // Get the last photo of each day as representative
+            img.addEventListener('click', () => {
+                const dateGalleryContainer = document.getElementById('date-gallery-container');
+                const dateGallery = document.getElementById('date-gallery');
+                const dateGalleryTitle = document.getElementById('date-gallery-title');
+                dateGalleryTitle.textContent = date;
+                dateGallery.innerHTML = '';
+                photos[date].forEach(photo => {
+                    const dateImg = document.createElement('img');
+                    dateImg.src = photo;
+                    dateGallery.appendChild(dateImg);
+                });
+                galleryContainer.classList.add('hidden');
+                dateGalleryContainer.classList.remove('hidden');
+            });
             gallery.appendChild(img);
         });
         galleryContainer.classList.remove('hidden');
-    }
-
-    function showDateGallery(date) {
-        const dateGalleryContainer = document.getElementById('date-gallery-container');
-        const dateGallery = document.getElementById('date-gallery');
-        const dateGalleryTitle = document.getElementById('date-gallery-title');
-        dateGallery.innerHTML = ''; // Clear previous content
-        dateGalleryTitle.textContent = `Gallery for ${date}`;
-        photos[date].forEach(imgSrc => {
-            const img = document.createElement('img');
-            img.src = imgSrc;
-            dateGallery.appendChild(img);
-        });
-        dateGalleryContainer.classList.remove('hidden');
-    }
+    });
 </script>
 
 </body>
