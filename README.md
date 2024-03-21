@@ -12,9 +12,9 @@
             margin: 0;
             padding: 0;
         }
-        #container {
+        #container, #gallery-container, #date-gallery-container {
             max-width: 800px;
-            margin: auto;
+            margin: 20px auto;
             padding: 20px;
             background-color: #fff;
             border-radius: 8px;
@@ -24,7 +24,7 @@
             max-width: 100%;
             border-radius: 5px;
         }
-        #capture-btn, .gallery-button, #download-link {
+        #capture-btn, .gallery-button, #download-link, .back-button {
             background-color: #007bff;
             color: #ffffff;
             border: none;
@@ -36,18 +36,17 @@
             display: inline-block;
             cursor: pointer;
         }
-        #gallery {
+        #gallery, #date-gallery {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             margin-top: 20px;
         }
-        #gallery img {
+        #gallery img, #date-gallery img {
             margin: 5px;
             width: 150px;
             height: auto;
             cursor: pointer;
-            border-radius: 5px;
         }
         .hidden {
             display: none;
@@ -59,14 +58,20 @@
         <h1>내 얼굴 뷰어</h1>
         <video id="video" autoplay playsinline></video>
         <button id="capture-btn">사진 찍기</button>
-        <img id="captured-photo" class="hidden">
-        <a id="download-link" class="hidden">사진 다운로드</a>
-        <button class="gallery-button" onclick="openGallery()">나의 갤러리</button>
-        <div id="gallery" class="hidden"></div>
+        <button class="gallery-button" onclick="showGallery()">나의 갤러리</button>
+    </div>
+    <div id="gallery-container" class="hidden">
+        <button class="back-button" onclick="hideGallery()">뒤로 가기</button>
+        <h2>대표사진</h2>
+        <div id="gallery"></div>
+    </div>
+    <div id="date-gallery-container" class="hidden">
+        <button class="back-button" onclick="showGallery()">뒤로 가기</button>
+        <div id="date-gallery"></div>
     </div>
 
     <script>
-        let photoDataUrl; // 촬영된 사진의 데이터 URL을 저장합니다.
+        const photos = JSON.parse(localStorage.getItem('photos')) || {};
 
         function setupCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -86,50 +91,54 @@
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            photoDataUrl = canvas.toDataURL('image/png');
+            const dataURL = canvas.toDataURL('image/png');
 
-            const capturedPhoto = document.getElementById('captured-photo');
-            capturedPhoto.src = photoDataUrl;
-            capturedPhoto.classList.remove('hidden');
-
-            const downloadLink = document.getElementById('download-link');
-            downloadLink.href = photoDataUrl;
-            downloadLink.download = 'captured_photo.png';
-            downloadLink.textContent = "사진 다운로드";
-            downloadLink.classList.remove('hidden');
-
-            // 사진을 로컬 스토리지에 저장합니다.
-            savePhotoToLocal(photoDataUrl);
+            savePhoto(dataURL);
         });
 
-        function savePhotoToLocal(dataUrl) {
-            const now = new Date();
-            const photoKey = `photo-${now.getTime()}`;
-            localStorage.setItem(photoKey, dataUrl);
-
-            // 나중에 찾기 쉽도록 날짜별 인덱스에 사진 키를 추가합니다.
-            const dateKey = now.toISOString().split('T')[0];
-            let datePhotos = JSON.parse(localStorage.getItem(dateKey)) || [];
-            datePhotos.push(photoKey);
-            localStorage.setItem(dateKey, JSON.stringify(datePhotos));
+        function savePhoto(dataURL) {
+            const today = new Date().toISOString().slice(0, 10);
+            if (!photos[today]) {
+                photos[today] = [];
+            }
+            photos[today].push(dataURL);
+            localStorage.setItem('photos', JSON.stringify(photos));
         }
 
-        function openGallery() {
-            const gallery = document.getElementById('gallery');
-            gallery.innerHTML = ''; // 갤러리 초기화
-            gallery.classList.remove('hidden');
+        function showGallery() {
+            document.getElementById('container').classList.add('hidden');
+            document.getElementById('gallery-container').classList.remove('hidden');
+            document.getElementById('date-gallery-container').classList.add('hidden');
 
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('photo-')) {
-                    const imgSrc = localStorage.getItem(key);
-                    const img = document.createElement('img');
-                    img.src = imgSrc;
-                    img.onclick = () => {
-                        window.open(img.src, '_blank');
-                    };
-                    gallery.appendChild(img);
-                }
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = ''; // Reset gallery
+
+            Object.keys(photos).forEach(date => {
+                const img = document.createElement('img');
+                img.src = photos[date][photos[date].length - 1]; // Get the last photo of each day
+                img.onclick = () => showDateGallery(date);
+                gallery.appendChild(img);
             });
+        }
+
+        function showDateGallery(date) {
+            document.getElementById('gallery-container').classList.add('hidden');
+            document.getElementById('date-gallery-container').classList.remove('hidden');
+
+            const dateGallery = document.getElementById('date-gallery');
+            dateGallery.innerHTML = '<h2>' + date + '</h2>'; // Reset and set date title
+
+            photos[date].forEach(photo => {
+                const img = document.createElement('img');
+                img.src = photo;
+                dateGallery.appendChild(img);
+            });
+        }
+
+        function hideGallery() {
+            document.getElementById('container').classList.remove('hidden');
+            document.getElementById('gallery-container').classList.add('hidden');
+            document.getElementById('date-gallery-container').classList.add('hidden');
         }
 
         window.onload = setupCamera;
