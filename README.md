@@ -5,36 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>내 얼굴 뷰어</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            text-align: center;
+        body, html {
             margin: 0;
             padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
         }
-        #container, #gallery-container, #date-gallery-container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        #video {
+            width: 480px;
+            height: 360px;
+            background-color: #000;
         }
-        #video, #captured-photo {
-            max-width: 100%;
-            border-radius: 5px;
-        }
-        #capture-btn, .gallery-button, #download-link, .back-button {
-            background-color: #007bff;
-            color: #ffffff;
-            border: none;
+        .button {
+            margin: 10px;
             padding: 10px 20px;
-            margin-top: 10px;
             font-size: 16px;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            cursor: pointer;
+        }
+        #gallery-container, #date-gallery-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 640px;
         }
         #gallery, #date-gallery {
             display: flex;
@@ -43,105 +39,114 @@
             margin-top: 20px;
         }
         #gallery img, #date-gallery img {
+            width: 30%;
+            max-width: 180px;
             margin: 5px;
-            width: 150px;
-            height: auto;
             cursor: pointer;
-        }
-        .hidden {
-            display: none;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 5px #ccc;
         }
     </style>
 </head>
 <body>
-    <div id="container">
-        <h1>내 얼굴 뷰어</h1>
-        <video id="video" autoplay playsinline></video>
-        <button id="capture-btn">사진 찍기</button>
-        <button class="gallery-button" onclick="showGallery()">나의 갤러리</button>
-    </div>
-    <div id="gallery-container" class="hidden">
-        <button class="back-button" onclick="hideGallery()">뒤로 가기</button>
-        <h2>대표사진</h2>
-        <div id="gallery"></div>
-    </div>
-    <div id="date-gallery-container" class="hidden">
-        <button class="back-button" onclick="showGallery()">뒤로 가기</button>
-        <div id="date-gallery"></div>
-    </div>
 
-    <script>
-        const photos = JSON.parse(localStorage.getItem('photos')) || {};
+<video id="video" autoplay playsinline></video>
+<button id="capture-btn" class="button">사진 찍기</button>
+<button id="show-gallery-btn" class="button">나의 갤러리</button>
 
-        function setupCamera() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-                    const video = document.getElementById('video');
-                    video.srcObject = stream;
-                }).catch(err => {
-                    console.error("카메라 접근에 실패했습니다:", err);
-                });
-            }
+<div id="gallery-container">
+    <h2>대표사진</h2>
+    <div id="gallery"></div>
+    <button id="back-to-camera" class="button">뒤로가기</button>
+</div>
+
+<div id="date-gallery-container">
+    <h2 id="date-gallery-title"></h2>
+    <div id="date-gallery"></div>
+    <button id="back-to-representative" class="button">뒤로가기</button>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    let photos = JSON.parse(localStorage.getItem('photos')) || {};
+
+    // 비디오 스트림 설정
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => video.srcObject = stream)
+        .catch(err => console.error("Error accessing camera:", err));
+
+    // 사진 찍기
+    document.getElementById('capture-btn').addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const dataURL = canvas.toDataURL('image/png');
+        const today = new Date().toISOString().slice(0, 10);
+
+        if (!photos[today]) {
+            photos[today] = [];
         }
+        photos[today].push(dataURL);
+        localStorage.setItem('photos', JSON.stringify(photos));
+    });
 
-        document.getElementById('capture-btn').addEventListener('click', () => {
-            const video = document.getElementById('video');
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataURL = canvas.toDataURL('image/png');
+    // 대표사진 보기
+    document.getElementById('show-gallery-btn').addEventListener('click', () => {
+        displayGallery();
+    });
 
-            savePhoto(dataURL);
+    // 대표사진에서 날짜별 갤러리로 이동
+    function displayGallery() {
+        document.getElementById('gallery-container').style.display = 'flex';
+        document.getElementById('video').style.display = 'none';
+        document.getElementById('capture-btn').style.display = 'none';
+        document.getElementById('show-gallery-btn').style.display = 'none';
+
+        const gallery = document.getElementById('gallery');
+        gallery.innerHTML = '';
+
+        Object.keys(photos).forEach(date => {
+            const img = document.createElement('img');
+            img.src = photos[date][photos[date].length - 1]; // 가장 마지막 사진
+            img.addEventListener('click', () => displayDateGallery(date));
+            gallery.appendChild(img);
         });
+    }
 
-        function savePhoto(dataURL) {
-            const today = new Date().toISOString().slice(0, 10);
-            if (!photos[today]) {
-                photos[today] = [];
-            }
-            photos[today].push(dataURL);
-            localStorage.setItem('photos', JSON.stringify(photos));
-        }
+    // 날짜별 갤러리 보기
+    function displayDateGallery(date) {
+        document.getElementById('gallery-container').style.display = 'none';
+        document.getElementById('date-gallery-container').style.display = 'flex';
 
-        function showGallery() {
-            document.getElementById('container').classList.add('hidden');
-            document.getElementById('gallery-container').classList.remove('hidden');
-            document.getElementById('date-gallery-container').classList.add('hidden');
+        const title = document.getElementById('date-gallery-title');
+        title.textContent = `날짜별 갤러리: ${date}`;
 
-            const gallery = document.getElementById('gallery');
-            gallery.innerHTML = ''; // Reset gallery
+        const dateGallery = document.getElementById('date-gallery');
+        dateGallery.innerHTML = '';
 
-            Object.keys(photos).forEach(date => {
-                const img = document.createElement('img');
-                img.src = photos[date][photos[date].length - 1]; // Get the last photo of each day
-                img.onclick = () => showDateGallery(date);
-                gallery.appendChild(img);
-            });
-        }
+        photos[date].forEach(photo => {
+            const img = document.createElement('img');
+            img.src = photo;
+            dateGallery.appendChild(img);
+        });
+    }
 
-        function showDateGallery(date) {
-            document.getElementById('gallery-container').classList.add('hidden');
-            document.getElementById('date-gallery-container').classList.remove('hidden');
+    // 뒤로가기 버튼
+    document.getElementById('back-to-camera').addEventListener('click', () => {
+        document.getElementById('gallery-container').style.display = 'none';
+        document.getElementById('video').style.display = 'block';
+        document.getElementById('capture-btn').style.display = 'inline-block';
+        document.getElementById('show-gallery-btn').style.display = 'inline-block';
+    });
 
-            const dateGallery = document.getElementById('date-gallery');
-            dateGallery.innerHTML = '<h2>' + date + '</h2>'; // Reset and set date title
+    document.getElementById('back-to-representative').addEventListener('click', () => {
+        document.getElementById('date-gallery-container').style.display = 'none';
+        document.getElementById('gallery-container').style.display = 'flex';
+    });
+</script>
 
-            photos[date].forEach(photo => {
-                const img = document.createElement('img');
-                img.src = photo;
-                dateGallery.appendChild(img);
-            });
-        }
-
-        function hideGallery() {
-            document.getElementById('container').classList.remove('hidden');
-            document.getElementById('gallery-container').classList.add('hidden');
-            document.getElementById('date-gallery-container').classList.add('hidden');
-        }
-
-        window.onload = setupCamera;
-    </script>
 </body>
 </html>
